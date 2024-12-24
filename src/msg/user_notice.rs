@@ -278,7 +278,7 @@ generate_getters! {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SubMysteryGift<'src> {
   count: u64,
-  sender_total_gifts: u64,
+  sender_total_gifts: Option<u64>,
   sub_plan: Cow<'src, str>,
 }
 
@@ -288,7 +288,7 @@ generate_getters! {
     count -> u64,
 
     /// Total number of gifts the sender has gifted in this channel.
-    sender_total_gifts -> u64,
+    sender_total_gifts -> Option<u64>,
 
     /// Subcription tier/plan.
     /// For example:
@@ -456,6 +456,13 @@ fn parse_promotion<'src>(message: &IrcMessageRef<'src>) -> Option<SubGiftPromo<'
   }
 }
 
+fn parse_total_gifts<'src>(message: &IrcMessageRef<'src>) -> Option<u64> {
+  match message.tag(Tag::MsgParamSenderCount) {
+    Some(total_gifts) => total_gifts.parse().ok(),
+    _ => None,
+  }
+}
+
 /// Some events are sent with this specific sender ID.
 /// If it is present, then the event is anonymous.
 const AN_ANONYMOUS_GIFTER: Option<&str> = Some("274598607");
@@ -534,9 +541,7 @@ impl<'src> UserNotice<'src> {
           count: message
             .tag(Tag::MsgParamMassGiftCount)
             .and_then(|v| v.parse().ok())?,
-          sender_total_gifts: message
-            .tag(Tag::MsgParamSenderCount)
-            .and_then(|v| v.parse().ok())?,
+          sender_total_gifts: parse_total_gifts(&message),
           sub_plan: message.tag(Tag::MsgParamSubPlan)?.into(),
         }),
         false,
@@ -752,6 +757,11 @@ mod tests {
   #[test]
   fn parse_submysterygift() {
     assert_irc_snapshot!(UserNotice, "@badge-info=;badges=sub-gifter/50;color=;display-name=AdamAtReflectStudios;emotes=;flags=;id=049e6371-7023-4fca-8605-7dec60e72e12;login=adamatreflectstudios;mod=0;msg-id=submysterygift;msg-param-mass-gift-count=20;msg-param-origin-id=1f\\sbe\\sbb\\s4a\\s81\\s9a\\s65\\sd1\\s4b\\s77\\sf5\\s23\\s16\\s4a\\sd3\\s13\\s09\\se7\\sbe\\s55;msg-param-sender-count=100;msg-param-sub-plan=1000;room-id=71092938;subscriber=0;system-msg=AdamAtReflectStudios\\sis\\sgifting\\s20\\sTier\\s1\\sSubs\\sto\\sxQcOW's\\scommunity!\\sThey've\\sgifted\\sa\\stotal\\sof\\s100\\sin\\sthe\\schannel!;tmi-sent-ts=1594583777669;user-id=211711554;user-type= :tmi.twitch.tv USERNOTICE #xqcow");
+  }
+
+  #[test]
+  fn parse_submystersgif_without_total() {
+    assert_irc_snapshot!(UserNotice, "@badge-info=;badges=sub-gifter/50;color=;display-name=twitch;emotes=;flags=;id=049e6371-7023-4fca-8605-7dec60e72e12;login=twitch;mod=0;msg-id=submysterygift;msg-param-mass-gift-count=20;msg-param-origin-id=1f\\sbe\\sbb\\s4a\\s81\\s9a\\s65\\sd1\\s4b\\s77\\sf5\\s23\\s16\\s4a\\sd3\\s13\\s09\\se7\\sbe\\s55;msg-param-sub-plan=1000;room-id=71092938;subscriber=0;system-msg=AdamAtReflectStudios\\sis\\sgifting\\s20\\sTier\\s1\\sSubs\\sto\\sxQcOW's\\scommunity!\\sThey've\\sgifted\\sa\\stotal\\sof\\s100\\sin\\sthe\\schannel!;tmi-sent-ts=1594583777669;user-id=12826;user-type= :tmi.twitch.tv USERNOTICE #xqcow");
   }
 
   #[test]
